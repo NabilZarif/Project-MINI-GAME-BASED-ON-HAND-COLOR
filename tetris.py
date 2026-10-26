@@ -594,7 +594,7 @@ def main():
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
         pygame.display.flip()
-        clock.tick(30) # 30 FPS
+        clock.tick(30) # 30FPS
 
     tutup_aplikasi(cap)
 
