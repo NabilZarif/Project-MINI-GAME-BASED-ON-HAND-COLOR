@@ -179,7 +179,7 @@ Proyek ini disusun dan dikembangkan oleh:
 - **Nama**: Moh Nabil Zarif Rofif
 - **GitHub**: [@NabilZarif](https://github.com/NabilZarif)
 - **Email**: mohnabilzarifrofif@gmail.com
-- **Mata Kuliah**: Pengolahan Citra dan Video (PCV) - Evaluasi Tengah Semester (ETS)
+- **Mata Kuliah**: Pengolahan Citra dan Video (PCV) - Project Batas Evaluasi Tengah Semester (ETS)
 
 ---
 
