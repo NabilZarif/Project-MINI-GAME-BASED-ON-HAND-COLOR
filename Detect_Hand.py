@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 
 def hitung_jari(kontur):
+    """Mendeteksi lekukan antar jari menggunakan Convexity Defects"""
     hull = cv2.convexHull(kontur, returnPoints=False)
     if len(hull) > 3:
         defects = cv2.convexityDefects(kontur, hull)
@@ -19,6 +20,7 @@ def hitung_jari(kontur):
                 c = np.linalg.norm(np.array(start) - np.array(end))
                 
                 sudut = np.arccos((a**2 + b**2 - c**2) / (2 * a * b))
+                # Sela jari membentuk sudut lancip (< 90 derajat)
                 if sudut <= np.pi / 2:
                     jumlah_jari += 1
             
@@ -28,33 +30,46 @@ def hitung_jari(kontur):
 
 def proses_tangan(frame):
     """
-    Menerima frame dari kamera utama (di game Tetris),
-    memproses deteksi warna, dan mengembalikan kontrol.
+    Memproses frame kamera untuk mendeteksi sarung tangan merah.
+    Mengembalikan: posisi (str), mengepal (bool), frame_visual
     """
     h, w, c = frame.shape
     posisi = "TENGAH"
     mengepal = False
     
-    # Preprocessing
+    # 1. Konversi BGR ke HSV
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
-    mask = cv2.inRange(hsv, lower_skin, upper_skin)
     
-    # Blokir area atas
-    batas_atas = int(h * 0.45)
+    # 2. Segmentasi Warna Merah (Dua Rentang HSV)
+    # Catatan: Nilai Saturation (S) dibuat minimal 120 agar warna kulit wajah/bibir tidak ikut terambil
+    lower_red1 = np.array([0, 120, 70], dtype=np.uint8)
+    upper_red1 = np.array([10, 255, 255], dtype=np.uint8)
+    
+    lower_red2 = np.array([170, 120, 70], dtype=np.uint8)
+    upper_red2 = np.array([180, 255, 255], dtype=np.uint8)
+    
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mask = cv2.bitwise_or(mask1, mask2)
+    
+    # 3. Garis Pengaman Area Wajah (Tetap dipertahankan agar bibir/baju merah tidak mengganggu)
+    batas_atas = int(h * 0.35)
     mask[0:batas_atas, 0:w] = 0
     cv2.line(frame, (0, batas_atas), (w, batas_atas), (0, 0, 255), 2)
+    cv2.putText(frame, "Area Bebas Wajah", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
     
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    mask = cv2.dilate(mask, kernel, iterations=2)
-    mask = cv2.GaussianBlur(mask, (5, 5), 100)
+    # 4. Pembersihan Noise Morfologi
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     
+    # 5. Ekstraksi Kontur Sarung Tangan
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     
     if contours:
         kontur_terbesar = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(kontur_terbesar) > 3000:
+        # Ambang batas luas kontur agar serpihan kecil diabaikan
+        if cv2.contourArea(kontur_terbesar) > 2500:
             cv2.drawContours(frame, [kontur_terbesar], -1, (0, 255, 0), 2)
             
             M = cv2.moments(kontur_terbesar)
@@ -63,6 +78,7 @@ def proses_tangan(frame):
                 cy = int(M["m01"] / M["m00"])
                 cv2.circle(frame, (cx, cy), 7, (255, 0, 0), -1)
                 
+                # Menentukan Posisi Kiri / Tengah / Kanan
                 titik_pusat_x_rel = cx / w
                 if titik_pusat_x_rel < 0.35:
                     posisi = "KIRI"
@@ -71,11 +87,32 @@ def proses_tangan(frame):
                 else:
                     posisi = "TENGAH"
                     
-                jumlah_jari_terbuka = hitung_jari(kontur_terbesar)
-                mengepal = (jumlah_jari_terbuka == 0)
+                # Deteksi Kepalan
+                jumlah_jari = hitung_jari(kontur_terbesar)
+                mengepal = (jumlah_jari == 0)
                 
                 status_aksi = "JATUHKAN!" if mengepal else "Tahan"
                 cv2.putText(frame, f"Posisi: {posisi}", (20, batas_atas + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
                 cv2.putText(frame, f"Aksi: {status_aksi}", (20, batas_atas + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255) if mengepal else (0, 255, 0), 2)
+                cv2.putText(frame, f"Jari Terbuka: {jumlah_jari}", (20, batas_atas + 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
     return posisi, mengepal, frame
+
+if __name__ == "__main__":
+    cap = cv2.VideoCapture(0)
+    print("Menguji deteksi sarung tangan merah...")
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+            
+        frame = cv2.flip(frame, 1)
+        posisi, mengepal, frame_visual = proses_tangan(frame)
+        
+        cv2.imshow("Test Sarung Tangan Merah", frame_visual)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+            
+    cap.release()
+    cv2.destroyAllWindows()
