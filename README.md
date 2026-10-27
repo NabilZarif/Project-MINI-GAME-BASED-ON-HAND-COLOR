@@ -168,6 +168,7 @@ Project-MINI-GAME-BASED-ON-HAND-COLOR/
 ├── Detect_Hand.py           # Modul pengolahan citra & deteksi gestur sarung tangan (OpenCV)
 ├── tetris.py                # Game engine Tetris, Landing Page, dan antarmuka visual (Pygame)
 ├── README.md                # Dokumentasi lengkap proyek
+├── hand_landmarker.task     # Model machine learning pre-trained yang mendeteksi serta melacak 21 titik koordinat ujung jari tangan secara real-time.
 └── .gitignore               # Daftar file yang diabaikan oleh Git
 ```
 
